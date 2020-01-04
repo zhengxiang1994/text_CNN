@@ -44,10 +44,10 @@ def load_data_and_labels(data_file_path, text_name, label_name):
 def next_batch(num, data, labels):
     """
     Return a total of `num` random samples and labels.
-    :param num:
-    :param data:
-    :param labels:
-    :return:
+    :param num: batch_size
+    :param data: feature column
+    :param labels: label column
+    :return: x_batch, y_batch
     """
     idx = np.arange(0, len(data))
     np.random.shuffle(idx)

@@ -1,6 +1,5 @@
 import tensorflow as tf
 import data_helper
-from data_helper import next_batch
 from tensorflow.contrib import learn
 import numpy as np
 import warnings
@@ -121,7 +120,7 @@ if __name__ == '__main__':
         sess.run(init)
         # train
         for i in range(FLAGS.num_epochs):
-            x_batch, y_batch = next_batch(FLAGS.batch_size, x_train, y_train)
+            x_batch, y_batch = data_helper.next_batch(FLAGS.batch_size, x_train, y_train)
             _, acc, loss = sess.run([optimizer, accuracy, cross_entropy], feed_dict={x: x_batch, y_: y_batch})
             if i % 10 == 0:
                 print('step {}:, loss: {}, accuracy: {}'.format(i, loss, acc))
