@@ -14,26 +14,32 @@ tf.flags.DEFINE_string('feature_name', 'comment_text', 'The name of feature colu
 tf.flags.DEFINE_string('label_name', 'label', 'The name of label column')
 tf.flags.DEFINE_float("dev_sample_percentage", .1, "Percentage of the training data to use for validation")
 
-# Model Hyperparameters
+# Model Hyper-parameters
 tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
 tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
 tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
-tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
+tf.flags.DEFINE_float("dropout_keep_prob", 0.8, "Dropout keep probability (default: 0.5)")
 tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
 
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
-tf.flags.DEFINE_integer("num_epochs", 2000, "Number of training epochs (default: 200)")
+tf.flags.DEFINE_integer("num_epochs", 5, "Number of training epochs (default: 200)")
 
 FLAGS = tf.flags.FLAGS
+
+
+def tokenizer(docs):
+    for doc in docs:
+        yield doc.split(' ')
 
 
 def pre_process():
     # load data
     x_text, y = data_helper.load_data_and_labels(FLAGS.data_file_path, FLAGS.feature_name, FLAGS.label_name)
     # Build vocabulary and cut or extend sentence to fixed length
-    max_document_length = max([len(x.split(" ")) for x in x_text])
-    vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length)
+    max_document_length = max([len(x) for x in tokenizer(x_text)])
+    print('max document length: {}'.format(max_document_length))
+    vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length, tokenizer_fn=tokenizer)
     # replace the word using the index of word in vocabulary
     x = np.array(list(vocab_processor.fit_transform(x_text)))
 
@@ -103,7 +109,10 @@ if __name__ == '__main__':
     # train step
     x = tf.placeholder(tf.int32, [None, x_train.shape[1]])
     y_ = tf.placeholder(tf.float32, [None, y_train.shape[1]])
-    scores, predictions = text_cnn(x, y_, y_train.shape[1], FLAGS.dropout_keep_prob, x_train.shape[1],
+    is_training = tf.placeholder(tf.bool, [], name='is_training')
+    dropout_keep_prob = tf.cond(is_training, lambda: tf.constant(FLAGS.dropout_keep_prob), lambda: tf.constant(1.0))
+
+    scores, predictions = text_cnn(x, y_, y_train.shape[1], dropout_keep_prob, x_train.shape[1],
                                    len(vocab_processor.vocabulary_), list(map(int, FLAGS.filter_sizes.split(","))),
                                    FLAGS.embedding_dim, FLAGS.num_filters)
     # loss function
@@ -119,12 +128,24 @@ if __name__ == '__main__':
         init = tf.global_variables_initializer()
         sess.run(init)
         # train
+        '''
         for i in range(FLAGS.num_epochs):
             x_batch, y_batch = data_helper.next_batch(FLAGS.batch_size, x_train, y_train)
-            _, acc, loss = sess.run([optimizer, accuracy, cross_entropy], feed_dict={x: x_batch, y_: y_batch})
+            _, acc, loss = sess.run([optimizer, accuracy, cross_entropy],
+                                    feed_dict={x: x_batch, y_: y_batch, is_training: True})
             if i % 10 == 0:
                 print('step {}:, loss: {}, accuracy: {}'.format(i, loss, acc))
+        '''
+
+        for epoch_i in range(FLAGS.num_epochs):
+            for batch_i, (x_batch, y_batch) in enumerate(data_helper.get_batches(x_train, y_train, FLAGS.batch_size)):
+                _, acc, loss = sess.run([optimizer, accuracy, cross_entropy],
+                                        feed_dict={x: x_batch, y_: y_batch, is_training: True})
+                if batch_i % 10 == 0:
+                    print('Epoch {}/{}, Batch {}/{}, loss: {}, accuracy: {}'.format(epoch_i, FLAGS.num_epochs, batch_i,
+                                                                                    len(x_train) // FLAGS.batch_size,
+                                                                                    loss, acc))
 
         # valid step
-        print('valid accuracy: {}'.format(sess.run(accuracy, feed_dict={x: x_dev, y_: y_dev})))
+        print('valid accuracy: {}'.format(sess.run(accuracy, feed_dict={x: x_dev, y_: y_dev, is_training: False})))
 

@@ -57,6 +57,14 @@ def next_batch(num, data, labels):
     return np.asarray(data_shuffle), np.asarray(labels_shuffle)
 
 
+def get_batches(data, labels, batch_size):
+    for batch_i in range(0, len(data)//batch_size):
+        start_i = batch_i * batch_size
+        data_batch = data[start_i: start_i+batch_size]
+        label_batch = labels[start_i: start_i+batch_size]
+        yield data_batch, label_batch
+
+
 if __name__ == '__main__':
     text, label = load_data_and_labels('./data/rt-polarity.csv', 'comment_text', 'label')
     print(label)
